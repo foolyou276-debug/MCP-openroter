@@ -9,10 +9,8 @@ class_name = "OpenRouterMCP"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["OpenRouterMCP"]
+new_sqlite_classes = ["OpenRouterMCP"]
 
 [vars]
 OPENROUTER_TITLE = "OpenRouter MCP"
 OPENROUTER_SITE_URL = "https://github.com/r4xgamez"
-
-# OPENROUTER_API_KEY — set via: wrangler secret put OPENROUTER_API_KEY
