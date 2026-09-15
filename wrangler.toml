@@ -7,5 +7,5 @@ OPENROUTER_TITLE = "OpenRouter MCP"
 OPENROUTER_SITE_URL = "https://github.com/r4xgamez"
 
 [[migrations]]
-tag = "v1"
+tag = "v2"
 deleted_classes = ["OpenRouterMCP"]
