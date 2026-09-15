@@ -5,3 +5,7 @@ compatibility_date = "2024-11-01"
 [vars]
 OPENROUTER_TITLE = "OpenRouter MCP"
 OPENROUTER_SITE_URL = "https://github.com/r4xgamez"
+
+[[migrations]]
+tag = "v1"
+deleted_classes = ["OpenRouterMCP"]
