@@ -1,15 +1,6 @@
 name = "openrouter-mcp"
 main = "src/index.ts"
-compatibility_date = "2025-09-15"
-compatibility_flags = ["nodejs_compat"]
-
-[[durable_objects.bindings]]
-name = "MCP_AGENT"
-class_name = "OpenRouterMCP"
-
-[[migrations]]
-tag = "v1"
-new_sqlite_classes = ["OpenRouterMCP"]
+compatibility_date = "2024-11-01"
 
 [vars]
 OPENROUTER_TITLE = "OpenRouter MCP"
