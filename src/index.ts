@@ -10,12 +10,15 @@ export interface Env {
 }
 
 const BASE = "https://openrouter.ai/api/v1";
-
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, mcp-session-id, x-api-key",
+  "Access-Control-Allow-Headers": "*",
 };
+
+function json(data: unknown, status = 200) {
+  return Response.json(data, { status, headers: CORS });
+}
 
 export class OpenRouterMCP extends McpAgent<Env> {
   server = new McpServer({ name: "openrouter", version: "1.0.0" });
@@ -81,7 +84,7 @@ export class OpenRouterMCP extends McpAgent<Env> {
     this.server.tool("get_model", "Get full details of a model", { model_id: z.string() }, async ({ model_id }) => {
       const data = await this.orFetch(`${BASE}/models`);
       const model = (data.data ?? []).find((m: any) => m.id === model_id);
-      return { content: [{ type: "text" as const, text: JSON.stringify(model ?? { error: `not found` }, null, 2) }] };
+      return { content: [{ type: "text" as const, text: JSON.stringify(model ?? { error: "not found" }, null, 2) }] };
     });
 
     this.server.tool("get_credits", "Check OpenRouter credits", {}, async () => {
@@ -111,24 +114,39 @@ export default {
     const url = new URL(request.url);
     const base = `${url.protocol}//${url.host}`;
 
-    // CORS preflight
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS });
     }
 
     // OAuth metadata
     if (url.pathname === "/.well-known/oauth-authorization-server") {
-      return Response.json({
+      return json({
         issuer: base,
         authorization_endpoint: `${base}/authorize`,
         token_endpoint: `${base}/token`,
+        registration_endpoint: `${base}/register`,
         response_types_supported: ["code"],
         grant_types_supported: ["authorization_code"],
         code_challenge_methods_supported: ["S256"],
-      }, { headers: CORS });
+        token_endpoint_auth_methods_supported: ["none"],
+      });
     }
 
-    // Passthrough authorize
+    // Dynamic client registration
+    if (url.pathname === "/register" && request.method === "POST") {
+      const body = await request.json<any>().catch(() => ({}));
+      return json({
+        client_id: crypto.randomUUID(),
+        client_secret: null,
+        client_id_issued_at: Math.floor(Date.now() / 1000),
+        redirect_uris: body.redirect_uris ?? [],
+        grant_types: ["authorization_code"],
+        response_types: ["code"],
+        token_endpoint_auth_method: "none",
+      }, 201);
+    }
+
+    // Authorize — redirect with code
     if (url.pathname === "/authorize") {
       const redirectUri = url.searchParams.get("redirect_uri") ?? "";
       const state = url.searchParams.get("state") ?? "";
@@ -139,30 +157,24 @@ export default {
       return Response.redirect(redirect.toString(), 302);
     }
 
-    // Passthrough token
-    if (url.pathname === "/token") {
-      return Response.json({
+    // Token exchange
+    if (url.pathname === "/token" && request.method === "POST") {
+      return json({
         access_token: crypto.randomUUID(),
         token_type: "Bearer",
         expires_in: 86400,
         scope: "mcp",
-      }, { headers: CORS });
+      });
     }
 
-    // SSE transport
+    // SSE — pass through directly (no wrapping, keeps stream intact)
     if (url.pathname === "/sse" || url.pathname.startsWith("/sse/")) {
-      const res = await OpenRouterMCP.serveSSE("/sse").fetch(request, env, ctx);
-      const newHeaders = new Headers(res.headers);
-      Object.entries(CORS).forEach(([k, v]) => newHeaders.set(k, v));
-      return new Response(res.body, { status: res.status, headers: newHeaders });
+      return OpenRouterMCP.serveSSE("/sse").fetch(request, env, ctx);
     }
 
-    // HTTP transport
+    // HTTP streamable
     if (url.pathname === "/mcp") {
-      const res = await OpenRouterMCP.serve("/mcp").fetch(request, env, ctx);
-      const newHeaders = new Headers(res.headers);
-      Object.entries(CORS).forEach(([k, v]) => newHeaders.set(k, v));
-      return new Response(res.body, { status: res.status, headers: newHeaders });
+      return OpenRouterMCP.serve("/mcp").fetch(request, env, ctx);
     }
 
     return new Response("OpenRouter MCP\n/sse\n/mcp", {
